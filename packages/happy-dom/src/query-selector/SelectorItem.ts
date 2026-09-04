@@ -273,10 +273,45 @@ export default class SelectorItem {
 				return element[PropertySymbol.tagName] === 'INPUT' && (<HTMLInputElement>element).checked
 					? { priorityWeight: 10 }
 					: null;
-			case 'disabled':
-				return 'disabled' in element && element.hasAttribute('disabled')
+			case 'disabled': {
+				if (!('disabled' in element)) {
+					return null;
+				}
+				if (element.hasAttribute('disabled')) {
+					return { priorityWeight: 10 };
+				}
+				let disabledAncestor = element.parentElement;
+				while (disabledAncestor) {
+					if (
+						disabledAncestor[PropertySymbol.tagName] === 'FIELDSET' &&
+						disabledAncestor.hasAttribute('disabled')
+					) {
+						const legend = disabledAncestor.children[0];
+						return !legend ||
+							legend[PropertySymbol.tagName] !== 'LEGEND' ||
+							!legend.contains(element)
+							? { priorityWeight: 10 }
+							: null;
+					}
+					disabledAncestor = disabledAncestor.parentElement;
+				}
+				return null;
+			}
+			case 'required':
+				return 'required' in element && element.hasAttribute('required')
 					? { priorityWeight: 10 }
 					: null;
+			case 'invalid':
+			case 'valid': {
+				if (
+					typeof (<{ checkValidity?: () => boolean }>(<unknown>element)).checkValidity !==
+					'function'
+				) {
+					return null;
+				}
+				const isValid = (<{ checkValidity: () => boolean }>(<unknown>element)).checkValidity();
+				return (pseudo.name === 'invalid' ? !isValid : isValid) ? { priorityWeight: 10 } : null;
+			}
 			case 'empty':
 				return !(<Element>element)[PropertySymbol.elementArray].length
 					? { priorityWeight: 10 }

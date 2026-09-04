@@ -1009,6 +1009,64 @@ describe('QuerySelector', () => {
 			expect(elements2[4] === container.children[0].children[5]).toBe(true);
 		});
 
+		it('Returns descendants of a disabled <fieldset> matching ":disabled", except inside its first <legend>.', () => {
+			const container = document.createElement('div');
+			container.innerHTML = `
+				<fieldset disabled>
+					<legend><input id="inLegend"></legend>
+					<input id="inFieldset">
+					<div><input id="nestedInFieldset"></div>
+				</fieldset>
+				<input id="outside">
+			`;
+			const elements = container.querySelectorAll(':disabled');
+
+			expect(elements.length).toBe(3);
+			expect(elements[0].tagName).toBe('FIELDSET');
+			expect(elements[1].id).toBe('inFieldset');
+			expect(elements[2].id).toBe('nestedInFieldset');
+		});
+
+		it('Does not match ":disabled" for descendants of a <fieldset> without the disabled attribute.', () => {
+			const container = document.createElement('div');
+			container.innerHTML = `<fieldset><input id="a"></fieldset>`;
+
+			expect(container.querySelectorAll(':disabled').length).toBe(0);
+		});
+
+		it('Returns all elements matching ":required".', () => {
+			const container = document.createElement('div');
+			container.innerHTML = `
+				<input id="a" required>
+				<input id="b">
+				<select id="c" required></select>
+				<textarea id="d" required></textarea>
+			`;
+			const elements = container.querySelectorAll(':required');
+
+			expect(elements.length).toBe(3);
+			expect(elements[0].id).toBe('a');
+			expect(elements[1].id).toBe('c');
+			expect(elements[2].id).toBe('d');
+		});
+
+		it('Returns all elements matching ":invalid" and ":valid".', () => {
+			const container = document.createElement('div');
+			container.innerHTML = `
+				<input id="a" required>
+				<input id="b" required value="filled">
+				<div id="c"></div>
+			`;
+
+			const invalid = container.querySelectorAll(':invalid');
+			const valid = container.querySelectorAll(':valid');
+
+			expect(invalid.length).toBe(1);
+			expect(invalid[0].id).toBe('a');
+			expect(valid.length).toBe(1);
+			expect(valid[0].id).toBe('b');
+		});
+
 		it('Returns all elements matching "span:not([type=hidden])".', () => {
 			const container = document.createElement('div');
 			container.innerHTML = QuerySelectorHTML;
