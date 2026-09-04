@@ -62,7 +62,9 @@ export default class Location {
 			history.push({
 				title: '',
 				href: url.href,
-				state: history.currentItem.state,
+				// A hash-only navigation is a fresh session-history entry per spec,
+				// not a continuation of the previous state (unlike pushState/replaceState).
+				state: null,
 				popState: true,
 				scrollRestoration: HistoryScrollRestorationEnum.manual,
 				method: history.currentItem.method,
