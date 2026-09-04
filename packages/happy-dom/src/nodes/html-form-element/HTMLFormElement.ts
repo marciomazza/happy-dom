@@ -521,6 +521,18 @@ export default class HTMLFormElement extends HTMLElement {
 			].slice()
 		);
 
+		// Form-associated custom elements are "listed" per spec, but aren't matched by the
+		// fixed tag-name selector above (their tag name isn't known ahead of time) - find them
+		// among this form's descendants by the [formAssociated] flag CustomElementRegistry
+		// .define() sets instead.
+		for (const element of <THTMLFormControlElement[]>(
+			QuerySelector.querySelectorAll(this, '*')[PropertySymbol.items]
+		)) {
+			if ((<HTMLElement>(<unknown>element))[PropertySymbol.formAssociated]) {
+				elements.push(element);
+			}
+		}
+
 		if (this[PropertySymbol.isConnected]) {
 			const id = this.getAttribute('id');
 			if (id) {
@@ -531,6 +543,19 @@ export default class HTMLFormElement extends HTMLElement {
 					)[PropertySymbol.items]
 				)) {
 					if (!elements.includes(element)) {
+						elements.push(element);
+					}
+				}
+
+				for (const element of <THTMLFormControlElement[]>(
+					QuerySelector.querySelectorAll(this[PropertySymbol.ownerDocument], `*[form="${id}"]`)[
+						PropertySymbol.items
+					]
+				)) {
+					if (
+						(<HTMLElement>(<unknown>element))[PropertySymbol.formAssociated] &&
+						!elements.includes(element)
+					) {
 						elements.push(element);
 					}
 				}
