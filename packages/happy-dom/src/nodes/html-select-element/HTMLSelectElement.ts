@@ -721,6 +721,16 @@ export default class HTMLSelectElement extends HTMLElement {
 
 				if (option[PropertySymbol.selectedness]) {
 					selected.push(option);
+
+					// Without an explicit selectedOption, an option whose selectedness was set
+					// outside the attribute pipeline (e.g. the HTML parser sets `selected` before
+					// the option is connected, so onSetAttribute can't reach this select) must
+					// still update the cached selectedIndex. The zero- and multi-selected cases
+					// are handled below; this covers the exactly-one case that would otherwise
+					// leave selectedIndex stale at -1.
+					if (!selectedOption) {
+						this[PropertySymbol.selectedIndex] = i;
+					}
 				}
 			}
 		}
