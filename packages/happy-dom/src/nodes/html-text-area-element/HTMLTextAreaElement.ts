@@ -11,6 +11,7 @@ import type HTMLLabelElement from '../html-label-element/HTMLLabelElement.js';
 import HTMLLabelElementUtility from '../html-label-element/HTMLLabelElementUtility.js';
 import type NodeList from '../node/NodeList.js';
 import ElementEventAttributeUtility from '../element/ElementEventAttributeUtility.js';
+import NodeUtility from '../node/NodeUtility.js';
 
 /**
  * HTML Text Area Element.
@@ -97,7 +98,9 @@ export default class HTMLTextAreaElement extends HTMLElement {
 	 * @returns Default value.
 	 */
 	public get defaultValue(): string {
-		return this.textContent;
+		// Element children can reach a textarea via DOM APIs (e.g. appendChild()), bypassing
+		// the RCDATA parser restriction; per spec only direct Text node children count.
+		return NodeUtility.getChildTextContent(this);
 	}
 
 	/**
@@ -356,7 +359,7 @@ export default class HTMLTextAreaElement extends HTMLElement {
 	 */
 	public get value(): string {
 		if (this[PropertySymbol.value] === null) {
-			return this.textContent;
+			return NodeUtility.getChildTextContent(this);
 		}
 
 		return this[PropertySymbol.value];

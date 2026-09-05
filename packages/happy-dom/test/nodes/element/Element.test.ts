@@ -13,6 +13,7 @@ import QuerySelector from '../../../src/query-selector/QuerySelector.js';
 import ChildNodeUtility from '../../../src/nodes/child-node/ChildNodeUtility.js';
 import NonDocumentChildNodeUtility from '../../../src/nodes/child-node/NonDocumentChildNodeUtility.js';
 import type HTMLTemplateElement from '../../../src/nodes/html-template-element/HTMLTemplateElement.js';
+import type HTMLInputElement from '../../../src/nodes/html-input-element/HTMLInputElement.js';
 import Node from '../../../src/nodes/node/Node.js';
 import HTMLCollection from '../../../src/nodes/element/HTMLCollection.js';
 import Element from '../../../src/nodes/element/Element.js';
@@ -885,6 +886,25 @@ describe('Element', () => {
 			expect(insertedNode).toBe(null);
 			expect(newNode.isConnected).toBe(false);
 		});
+
+		it('Matches the position ASCII case-insensitively.', () => {
+			const parent = document.createElement('div');
+			const newNode = document.createElement('span');
+			document.body.appendChild(parent);
+
+			parent.insertAdjacentElement(<'beforeend'>'BeforeEnd', newNode);
+
+			expect(parent.childNodes[0] === newNode).toBe(true);
+		});
+
+		it('Returns with null for an unrecognised position.', () => {
+			const parent = document.createElement('div');
+			const newNode = document.createElement('span');
+			document.body.appendChild(parent);
+
+			expect(parent.insertAdjacentElement(<'beforeend'>(<unknown>'invalid'), newNode)).toBe(null);
+			expect(newNode.isConnected).toBe(false);
+		});
 	});
 
 	describe('insertAdjacentHTML()', () => {
@@ -950,6 +970,123 @@ describe('Element', () => {
 			expect(document.body.childNodes[0] === parent).toBe(true);
 			expect((<Element>document.body.childNodes[1]).outerHTML).toEqual(markup);
 			expect(document.body.childNodes[2] === sibling).toBe(true);
+		});
+
+		it('Unchecks an already checked radio button elsewhere in the form when the inserted markup has a radio button checked in the same group.', () => {
+			const form = document.createElement('form');
+			const existingRadio = document.createElement('input');
+
+			existingRadio.type = 'radio';
+			existingRadio.name = 'g';
+			existingRadio.checked = true;
+
+			form.appendChild(existingRadio);
+			document.body.appendChild(form);
+
+			form.insertAdjacentHTML('beforeend', '<input type="radio" name="g" checked>');
+
+			const newRadio = <HTMLInputElement>form.lastChild;
+
+			expect(existingRadio.checked).toBe(false);
+			expect(newRadio.checked).toBe(true);
+		});
+
+		it('Parses markup using the target element as context, keeping table rows and cells.', () => {
+			const container = document.createElement('div');
+			container.innerHTML = '<table><tbody class="x"><tr><td>one</td></tr></tbody></table>';
+			document.body.appendChild(container);
+
+			const tbody = <Element>container.querySelector('.x');
+			tbody.insertAdjacentHTML('beforeend', '<tr class="added"><td>two</td></tr>');
+
+			expect(container.querySelectorAll('tbody > tr').length).toBe(2);
+			expect(tbody.innerHTML).toBe('<tr><td>one</td></tr><tr class="added"><td>two</td></tr>');
+		});
+
+		it('Keeps source order when inserting multiple nodes with "afterbegin".', () => {
+			const div = document.createElement('div');
+			div.innerHTML = '<i>z</i>';
+			document.body.appendChild(div);
+
+			div.insertAdjacentHTML('afterbegin', '<b>1</b><b>2</b>');
+
+			expect(div.innerHTML).toBe('<b>1</b><b>2</b><i>z</i>');
+		});
+
+		it('Keeps source order when inserting multiple nodes with "afterend".', () => {
+			const div = document.createElement('div');
+			const sibling = document.createElement('span');
+			document.body.appendChild(div);
+			document.body.appendChild(sibling);
+
+			div.insertAdjacentHTML('afterend', '<b>1</b><b>2</b>');
+
+			expect((<Element>document.body.childNodes[1]).outerHTML).toBe('<b>1</b>');
+			expect((<Element>document.body.childNodes[2]).outerHTML).toBe('<b>2</b>');
+			expect(document.body.childNodes[3] === sibling).toBe(true);
+		});
+
+		it('Throws a NoModificationAllowedError when using "beforebegin" on a parentless element.', () => {
+			const orphan = document.createElement('div');
+
+			expect(() => orphan.insertAdjacentHTML('beforebegin', '<b>x</b>')).toThrow(
+				new window.DOMException(
+					`Failed to execute 'insertAdjacentHTML' on 'Element': The element has no parent.`,
+					DOMExceptionNameEnum.noModificationAllowedError
+				)
+			);
+		});
+
+		it('Throws a NoModificationAllowedError when using "afterend" on a parentless element.', () => {
+			const orphan = document.createElement('div');
+
+			expect(() => orphan.insertAdjacentHTML('afterend', '<b>x</b>')).toThrow(
+				new window.DOMException(
+					`Failed to execute 'insertAdjacentHTML' on 'Element': The element has no parent.`,
+					DOMExceptionNameEnum.noModificationAllowedError
+				)
+			);
+		});
+
+		it('Throws a SyntaxError for an invalid position.', () => {
+			const div = document.createElement('div');
+			document.body.appendChild(div);
+
+			expect(() => div.insertAdjacentHTML(<'beforebegin'>(<unknown>'invalid'), '<b>x</b>')).toThrow(
+				new window.DOMException(
+					`The value provided ('invalid') is not a valid enum value of type InsertPosition.`,
+					DOMExceptionNameEnum.syntaxError
+				)
+			);
+		});
+
+		it('Matches the position ASCII case-insensitively.', () => {
+			const div = document.createElement('div');
+			document.body.appendChild(div);
+
+			div.insertAdjacentHTML(<'beforeend'>'BeforeEnd', '<b>1</b>');
+
+			expect(div.innerHTML).toBe('<b>1</b>');
+		});
+
+		it('Uses a "body" context when inserting into the document element.', () => {
+			document.documentElement.insertAdjacentHTML('beforeend', '<div class="added">x</div>');
+
+			expect(document.querySelectorAll('head').length).toBe(1);
+			expect(document.querySelectorAll('body').length).toBe(1);
+			expect(document.documentElement.lastElementChild?.outerHTML).toBe(
+				'<div class="added">x</div>'
+			);
+		});
+
+		it('Inserts into the content of a <template> target.', () => {
+			const template = <HTMLTemplateElement>document.createElement('template');
+			document.body.appendChild(template);
+
+			template.insertAdjacentHTML('beforeend', '<div>x</div>');
+
+			expect(template.content.childNodes.length).toBe(1);
+			expect((<Element>template.content.firstChild).outerHTML).toBe('<div>x</div>');
 		});
 	});
 
@@ -2003,9 +2140,9 @@ describe('Element', () => {
 			expect(element.getAttributeNames()).toEqual(['global:local1', 'key1', 'key2']);
 		});
 
-		it('Returns attribute names using the same local name with different prefix.', () => {
-			element.setAttribute('ns1:key', 'value1');
-			element.setAttribute('ns2:key', 'value1');
+		it('Returns attribute names using the same local name with different prefix and namespace.', () => {
+			element.setAttributeNS(NAMESPACE_URI, 'ns1:key', 'value1');
+			element.setAttributeNS(NAMESPACE_URI + '2', 'ns2:key', 'value1');
 			element.setAttribute('key1', 'value1');
 			element.setAttribute('key2', '');
 			expect(element.getAttributeNames()).toEqual(['ns1:key', 'ns2:key', 'key1', 'key2']);

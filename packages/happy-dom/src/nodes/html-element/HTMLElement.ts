@@ -13,6 +13,8 @@ import DOMExceptionNameEnum from '../../exception/DOMExceptionNameEnum.js';
 import type File from '../../file/File.js';
 import type FormData from '../../form-data/FormData.js';
 
+const HIDDEN_UNTIL_FOUND = 'until-found';
+
 /**
  * HTML Element.
  *
@@ -868,24 +870,32 @@ export default class HTMLElement extends Element {
 	}
 
 	/**
-	 * Returns hidden.
+	 * Returns the enumerated "hidden" state: `false` when absent, `"until-found"` for the
+	 * hidden-until-found state, `true` for any other value.
 	 *
 	 * @returns Hidden.
 	 */
-	public get hidden(): boolean {
-		return this.getAttribute('hidden') !== null;
+	public get hidden(): boolean | string {
+		const value = this.getAttribute('hidden');
+		if (value === null) {
+			return false;
+		}
+		return value.toLowerCase() === HIDDEN_UNTIL_FOUND ? HIDDEN_UNTIL_FOUND : true;
 	}
 
 	/**
-	 * Returns hidden.
+	 * Sets the "hidden" state. `"until-found"` sets the hidden-until-found state,
+	 * other truthy values set the plain hidden state, falsy values remove the attribute.
 	 *
 	 * @param hidden Hidden.
 	 */
-	public set hidden(hidden: boolean) {
-		if (!hidden) {
-			this.removeAttribute('hidden');
-		} else {
+	public set hidden(hidden: boolean | string) {
+		if (typeof hidden === 'string' && hidden.toLowerCase() === HIDDEN_UNTIL_FOUND) {
+			this.setAttribute('hidden', HIDDEN_UNTIL_FOUND);
+		} else if (hidden) {
 			this.setAttribute('hidden', '');
+		} else {
+			this.removeAttribute('hidden');
 		}
 	}
 

@@ -6,8 +6,9 @@ import type HTMLFormElement from '../nodes/html-form-element/HTMLFormElement.js'
 import type BrowserWindow from '../window/BrowserWindow.js';
 import type HTMLButtonElement from '../nodes/html-button-element/HTMLButtonElement.js';
 import type HTMLElement from '../nodes/html-element/HTMLElement.js';
-import HTMLElementUtility from '../nodes/html-element/HTMLElementUtility.js';
+import type HTMLSelectElement from '../nodes/html-select-element/HTMLSelectElement.js';
 import DOMExceptionNameEnum from '../exception/DOMExceptionNameEnum.js';
+import HTMLElementUtility from '../nodes/html-element/HTMLElementUtility.js';
 
 type FormDataEntry = {
 	name: string;
@@ -80,13 +81,9 @@ export default class FormData implements Iterable<[string, string | File]> {
 
 			const name = item.name;
 
-			if (name) {
+			if (name && !HTMLElementUtility.isEffectivelyDisabled(item)) {
 				switch (item[PropertySymbol.tagName]) {
 					case 'INPUT':
-						if ((<HTMLInputElement>item).disabled) {
-							break;
-						}
-
 						switch ((<HTMLInputElement>item).type) {
 							case 'file':
 								if ((<HTMLInputElement>item)[PropertySymbol.files].length === 0) {
@@ -121,8 +118,16 @@ export default class FormData implements Iterable<[string, string | File]> {
 						}
 						break;
 					case 'TEXTAREA':
-					case 'SELECT':
 						this.append(name, (<HTMLInputElement>item).value);
+						break;
+					case 'SELECT':
+						if ((<HTMLSelectElement>item).multiple) {
+							for (const option of (<HTMLSelectElement>item).selectedOptions) {
+								this.append(name, option.value);
+							}
+						} else {
+							this.append(name, (<HTMLSelectElement>item).value);
+						}
 						break;
 				}
 			}
@@ -227,18 +232,29 @@ export default class FormData implements Iterable<[string, string | File]> {
 	/**
 	 * Sets a new value for an existing key inside a FormData object, or adds the key/value if it does not already exist.
 	 *
+	 * If there is more than one entry with the given key, the first one is replaced with the
+	 * new value and all subsequent entries with that key are removed.
+	 *
 	 * @param name Name.
 	 * @param value Value.
 	 * @param [filename] Filename.
 	 */
 	public set(name: string, value: string | Blob | File, filename?: string): void {
-		for (const entry of this.#entries) {
-			if (entry.name === name) {
-				entry.value = this.#parseValue(value, filename);
-				return;
+		let found = false;
+		this.#entries = this.#entries.filter((entry) => {
+			if (entry.name !== name) {
+				return true;
 			}
+			if (found) {
+				return false;
+			}
+			entry.value = this.#parseValue(value, filename);
+			found = true;
+			return true;
+		});
+		if (!found) {
+			this.append(name, value);
 		}
-		this.append(name, value);
 	}
 
 	/**

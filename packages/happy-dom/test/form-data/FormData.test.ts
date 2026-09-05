@@ -1,5 +1,8 @@
 import Window from '../../src/window/Window.js';
 import type Document from '../../src/nodes/document/Document.js';
+import type HTMLSelectElement from '../../src/nodes/html-select-element/HTMLSelectElement.js';
+import type HTMLOptionElement from '../../src/nodes/html-option-element/HTMLOptionElement.js';
+import type HTMLButtonElement from '../../src/nodes/html-button-element/HTMLButtonElement.js';
 import File from '../../src/file/File.js';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import Blob from '../../src/file/Blob.js';
@@ -108,6 +111,157 @@ describe('FormData', () => {
 			expect(formData.get('button2')).toBe(null);
 			expect(formData.get('button3')).toBe(null);
 			expect(formData.get('button4')).toBe(null);
+		});
+
+		it('Sends one entry per selected option for a <select multiple>.', () => {
+			const form = document.createElement('form');
+			const select = <HTMLSelectElement>document.createElement('select');
+			const optionA = <HTMLOptionElement>document.createElement('option');
+			const optionB = <HTMLOptionElement>document.createElement('option');
+			const optionC = <HTMLOptionElement>document.createElement('option');
+
+			select.name = 's';
+			select.multiple = true;
+			optionA.value = 'a';
+			optionA.selected = true;
+			optionB.value = 'b';
+			optionB.selected = true;
+			optionC.value = 'c';
+
+			select.appendChild(optionA);
+			select.appendChild(optionB);
+			select.appendChild(optionC);
+			form.appendChild(select);
+
+			const formData = new window.FormData(form);
+
+			expect(formData.getAll('s')).toEqual(['a', 'b']);
+		});
+
+		it('Sends only the selected value for a <select> without "multiple".', () => {
+			const form = document.createElement('form');
+			const select = <HTMLSelectElement>document.createElement('select');
+			const optionA = <HTMLOptionElement>document.createElement('option');
+			const optionB = <HTMLOptionElement>document.createElement('option');
+
+			select.name = 's';
+			optionA.value = 'a';
+			optionB.value = 'b';
+			optionB.selected = true;
+
+			select.appendChild(optionA);
+			select.appendChild(optionB);
+			form.appendChild(select);
+
+			const formData = new window.FormData(form);
+
+			expect(formData.getAll('s')).toEqual(['b']);
+		});
+
+		it('Excludes an <input> inside a disabled <fieldset>, but not inside its first <legend>.', () => {
+			const form = document.createElement('form');
+			const fieldset = document.createElement('fieldset');
+			const legend = document.createElement('legend');
+			const legendInput = document.createElement('input');
+			const bodyInput = document.createElement('input');
+
+			fieldset.disabled = true;
+			legendInput.name = 'legendInput';
+			legendInput.value = 'legend value';
+			bodyInput.name = 'bodyInput';
+			bodyInput.value = 'body value';
+
+			legend.appendChild(legendInput);
+			fieldset.appendChild(legend);
+			fieldset.appendChild(bodyInput);
+			form.appendChild(fieldset);
+
+			const formData = new window.FormData(form);
+
+			expect(formData.get('legendInput')).toBe('legend value');
+			expect(formData.get('bodyInput')).toBe(null);
+		});
+
+		it('Excludes a <textarea> and a <select> inside a disabled <fieldset>.', () => {
+			const form = document.createElement('form');
+			const fieldset = document.createElement('fieldset');
+			const textarea = document.createElement('textarea');
+			const select = document.createElement('select');
+			const option = document.createElement('option');
+
+			fieldset.disabled = true;
+			textarea.name = 'textareaInput';
+			textarea.value = 'textarea value';
+			select.name = 'selectInput';
+			option.value = 'option value';
+			option.selected = true;
+
+			select.appendChild(option);
+			fieldset.appendChild(textarea);
+			fieldset.appendChild(select);
+			form.appendChild(fieldset);
+
+			const formData = new window.FormData(form);
+
+			expect(formData.get('textareaInput')).toBe(null);
+			expect(formData.get('selectInput')).toBe(null);
+		});
+
+		it('Excludes a directly disabled <textarea> and <select>.', () => {
+			const form = document.createElement('form');
+			const textarea = document.createElement('textarea');
+			const select = document.createElement('select');
+			const option = document.createElement('option');
+
+			textarea.name = 'textareaInput';
+			textarea.value = 'textarea value';
+			textarea.disabled = true;
+			select.name = 'selectInput';
+			select.disabled = true;
+			option.value = 'option value';
+			option.selected = true;
+
+			select.appendChild(option);
+			form.appendChild(textarea);
+			form.appendChild(select);
+
+			const formData = new window.FormData(form);
+
+			expect(formData.get('textareaInput')).toBe(null);
+			expect(formData.get('selectInput')).toBe(null);
+		});
+
+		it('Excludes a directly disabled <button> submitter.', () => {
+			const form = document.createElement('form');
+			const button = <HTMLButtonElement>document.createElement('button');
+
+			button.type = 'submit';
+			button.name = 'button';
+			button.value = 'button value';
+			button.disabled = true;
+			form.appendChild(button);
+
+			const formData = new window.FormData(form, button);
+
+			expect(formData.get('button')).toBe(null);
+		});
+
+		it('Excludes a <button> submitter inside a disabled <fieldset>.', () => {
+			const form = document.createElement('form');
+			const fieldset = document.createElement('fieldset');
+			const button = <HTMLButtonElement>document.createElement('button');
+
+			fieldset.disabled = true;
+			button.type = 'submit';
+			button.name = 'button';
+			button.value = 'button value';
+
+			fieldset.appendChild(button);
+			form.appendChild(fieldset);
+
+			const formData = new window.FormData(form, button);
+
+			expect(formData.get('button')).toBe(null);
 		});
 
 		it('Supports sending in an HTMLFormElement and a submitter to the constructor.', () => {
@@ -508,6 +662,20 @@ describe('FormData', () => {
 
 			expect(formData.getAll('key1')).toEqual(['value2']);
 			expect(formData.getAll('key2')).toEqual(['value3']);
+		});
+
+		it('Removes entries added after the first one with the same key.', () => {
+			const formData = new window.FormData();
+
+			formData.append('key1', 'value1');
+			formData.append('key1', 'value2');
+			formData.append('key1', 'value3');
+			formData.append('key2', 'value4');
+
+			formData.set('key1', 'value5');
+
+			expect(formData.getAll('key1')).toEqual(['value5']);
+			expect(formData.getAll('key2')).toEqual(['value4']);
 		});
 	});
 
