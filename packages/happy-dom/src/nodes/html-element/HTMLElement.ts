@@ -864,8 +864,12 @@ export default class HTMLElement extends Element {
 	 *
 	 * @returns Hidden.
 	 */
-	public get hidden(): boolean {
-		return this.getAttribute('hidden') !== null;
+	public get hidden(): boolean | string {
+		const value = this.getAttribute('hidden');
+		if (value === null) {
+			return false;
+		}
+		return value.toLowerCase() === 'until-found' ? 'until-found' : true;
 	}
 
 	/**
@@ -873,11 +877,13 @@ export default class HTMLElement extends Element {
 	 *
 	 * @param hidden Hidden.
 	 */
-	public set hidden(hidden: boolean) {
-		if (!hidden) {
-			this.removeAttribute('hidden');
-		} else {
+	public set hidden(hidden: boolean | string) {
+		if (typeof hidden === 'string' && hidden.toLowerCase() === 'until-found') {
+			this.setAttribute('hidden', 'until-found');
+		} else if (hidden) {
 			this.setAttribute('hidden', '');
+		} else {
+			this.removeAttribute('hidden');
 		}
 	}
 
