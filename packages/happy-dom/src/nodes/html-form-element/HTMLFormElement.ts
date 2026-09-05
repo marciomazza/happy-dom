@@ -442,7 +442,8 @@ export default class HTMLFormElement extends HTMLElement {
 					break;
 				case 'INPUT':
 					(<HTMLInputElement>element)[PropertySymbol.value] = null;
-					(<HTMLInputElement>element)[PropertySymbol.checked] = null;
+					(<HTMLInputElement>element)[PropertySymbol.dirtyness] = false;
+					(<HTMLInputElement>element)[PropertySymbol.checkedness] = element.hasAttribute('checked');
 					break;
 				case 'OUTPUT':
 					(<HTMLOutputElement>element).textContent = (<HTMLOutputElement>element)[

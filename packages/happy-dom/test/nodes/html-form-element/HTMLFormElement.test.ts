@@ -1307,6 +1307,29 @@ describe('HTMLFormElement', () => {
 			expect((<HTMLOutputElement>root.children[9]).value).toBe('Default value');
 			expect((<HTMLOutputElement>root.children[9]).textContent).toBe('Default value');
 		});
+
+		it('Clears the dirty checkedness flag both ways.', () => {
+			element.innerHTML = `
+                <input type="checkbox" name="a">
+                <input type="checkbox" name="b" checked>
+            `;
+			document.body.appendChild(element);
+
+			const a = <HTMLInputElement>element.querySelector('[name="a"]');
+			const b = <HTMLInputElement>element.querySelector('[name="b"]');
+
+			a.checked = true;
+			b.checked = false;
+
+			element.reset();
+
+			expect(a.checked).toBe(false);
+			expect(b.checked).toBe(true);
+
+			b.removeAttribute('checked');
+
+			expect(b.checked).toBe(false);
+		});
 	});
 
 	describe('appendChild()', () => {
