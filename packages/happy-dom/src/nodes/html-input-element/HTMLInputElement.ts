@@ -20,6 +20,7 @@ import { URL } from 'url';
 import MouseEvent from '../../event/events/MouseEvent.js';
 import type NodeList from '../node/NodeList.js';
 import ElementEventAttributeUtility from '../element/ElementEventAttributeUtility.js';
+import type Attr from '../attr/Attr.js';
 
 // Valid input type states per HTML spec:
 // https://html.spec.whatwg.org/multipage/input.html#attr-input-type
@@ -64,7 +65,8 @@ export default class HTMLInputElement extends HTMLElement {
 	public [PropertySymbol.value]: string | null = null;
 	public [PropertySymbol.height] = 0;
 	public [PropertySymbol.width] = 0;
-	public [PropertySymbol.checked]: boolean | null = null;
+	public [PropertySymbol.checkedness]: boolean = false;
+	public [PropertySymbol.dirtyness]: boolean = false;
 	public [PropertySymbol.validationMessage] = '';
 	public [PropertySymbol.validity]: ValidityState = new ValidityState(this);
 	public [PropertySymbol.files]: FileList = new FileList();
@@ -785,10 +787,7 @@ export default class HTMLInputElement extends HTMLElement {
 	 * @returns Checked.
 	 */
 	public get checked(): boolean {
-		if (this[PropertySymbol.checked] !== null) {
-			return this[PropertySymbol.checked];
-		}
-		return this.getAttribute('checked') !== null;
+		return this[PropertySymbol.checkedness];
 	}
 
 	/**
@@ -1424,6 +1423,8 @@ export default class HTMLInputElement extends HTMLElement {
 	public override [PropertySymbol.cloneNode](deep = false): HTMLInputElement {
 		const clone = <HTMLInputElement>super[PropertySymbol.cloneNode](deep);
 		clone[PropertySymbol.value] = this[PropertySymbol.value];
+		clone[PropertySymbol.checkedness] = this[PropertySymbol.checkedness];
+		clone[PropertySymbol.dirtyness] = this[PropertySymbol.dirtyness];
 		clone[PropertySymbol.height] = this[PropertySymbol.height];
 		clone[PropertySymbol.width] = this[PropertySymbol.width];
 		clone[PropertySymbol.files] = <FileList>this[PropertySymbol.files].slice();
@@ -1524,27 +1525,110 @@ export default class HTMLInputElement extends HTMLElement {
 	}
 
 	/**
-	 * Sets checked value.
+	 * Sets checkedness and marks the dirty checkedness flag, per the "checked" IDL setter.
 	 *
 	 * @param checked Checked.
 	 */
 	#setChecked(checked: boolean): void {
-		this[PropertySymbol.checked] = checked;
+		this[PropertySymbol.dirtyness] = true;
+		this.#updateCheckedness(checked);
+	}
+
+	/**
+	 * Sets checkedness without touching the dirty checkedness flag, then re-runs radio group
+	 * mutual exclusion. Used by attribute-driven changes and by exclusion unchecking siblings.
+	 *
+	 * @param checked Checked.
+	 */
+	#updateCheckedness(checked: boolean): void {
+		if (this[PropertySymbol.checkedness] === checked) {
+			return;
+		}
+		this[PropertySymbol.checkedness] = checked;
 		this[PropertySymbol.clearCache]();
 
-		if (checked && this.type === 'radio' && this.name) {
-			const root = <HTMLElement>(
-				(<HTMLFormElement>this[PropertySymbol.formNode] || this.getRootNode())
-			);
-			const radioButtons = <NodeList<HTMLInputElement>>(
-				root.querySelectorAll(`input[type="radio"][name="${this.name}"]`)
-			);
+		if (checked) {
+			this.#uncheckOtherRadioButtonsInGroup();
+		}
+	}
 
-			for (const radioButton of radioButtons) {
-				if (radioButton !== this) {
-					radioButton[PropertySymbol.checked] = false;
-				}
+	/**
+	 * Unchecks the other radio buttons in this radio button's group (same "name", same form
+	 * owner or same root if there is none), per the radio button group mutual-exclusion
+	 * algorithm.
+	 *
+	 * @see https://html.spec.whatwg.org/multipage/input.html#radio-button-state-(type=radio)
+	 */
+	#uncheckOtherRadioButtonsInGroup(): void {
+		if (this.type !== 'radio' || !this.name || !this.checked) {
+			return;
+		}
+
+		const root = <HTMLElement>(
+			(<HTMLFormElement>this[PropertySymbol.formNode] || this.getRootNode())
+		);
+		const radioButtons = <NodeList<HTMLInputElement>>(
+			root.querySelectorAll(`input[type="radio"][name="${this.name}"]`)
+		);
+
+		for (const radioButton of radioButtons) {
+			// Exclusion never touches a sibling's dirty checkedness flag, per spec — an
+			// attribute-checked radio unchecked here stays attribute-driven and re-checkable.
+			if (radioButton !== this && radioButton[PropertySymbol.checkedness]) {
+				radioButton.#updateCheckedness(false);
 			}
 		}
+	}
+
+	/**
+	 * @override
+	 */
+	public override [PropertySymbol.onSetAttribute](
+		attribute: Attr,
+		replacedAttribute: Attr | null
+	): void {
+		super[PropertySymbol.onSetAttribute](attribute, replacedAttribute);
+
+		const name = attribute[PropertySymbol.name];
+
+		// The "checked" attribute drives checkedness only while not dirty, per spec.
+		if (name === 'checked' && !this[PropertySymbol.dirtyness]) {
+			this.#updateCheckedness(true);
+			return;
+		}
+
+		// "type"/"name" can be parsed in any order relative to "checked" within a start tag, so
+		// re-run mutual exclusion on each once this is currently checked.
+		if ((name === 'type' || name === 'name') && this[PropertySymbol.checkedness]) {
+			this.#uncheckOtherRadioButtonsInGroup();
+		}
+	}
+
+	/**
+	 * @override
+	 */
+	public override [PropertySymbol.onRemoveAttribute](removedAttribute: Attr): void {
+		super[PropertySymbol.onRemoveAttribute](removedAttribute);
+
+		if (
+			removedAttribute &&
+			removedAttribute[PropertySymbol.name] === 'checked' &&
+			!this[PropertySymbol.dirtyness]
+		) {
+			this.#updateCheckedness(false);
+		}
+	}
+
+	/**
+	 * @override
+	 */
+	public override [PropertySymbol.connectedToNode](): void {
+		super[PropertySymbol.connectedToNode]();
+
+		// Per spec, the radio button group mutual-exclusion algorithm must also run when the
+		// element becomes connected — e.g. a checked radio inserted via insertAdjacentHTML()
+		// (parsed into a disconnected fragment first) needs to reconcile against radio buttons
+		// already checked elsewhere in the document once it joins it.
+		this.#uncheckOtherRadioButtonsInGroup();
 	}
 }
