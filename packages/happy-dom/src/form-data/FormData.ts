@@ -5,6 +5,7 @@ import type HTMLInputElement from '../nodes/html-input-element/HTMLInputElement.
 import type HTMLFormElement from '../nodes/html-form-element/HTMLFormElement.js';
 import type BrowserWindow from '../window/BrowserWindow.js';
 import type HTMLButtonElement from '../nodes/html-button-element/HTMLButtonElement.js';
+import type HTMLElement from '../nodes/html-element/HTMLElement.js';
 import DOMExceptionNameEnum from '../exception/DOMExceptionNameEnum.js';
 
 type FormDataEntry = {
@@ -56,9 +57,22 @@ export default class FormData implements Iterable<[string, string | File]> {
 		const items = form[PropertySymbol.getFormControlItems]();
 
 		for (const item of items) {
-			const name = item.name;
+			const name = item.name || item.getAttribute('name');
 
 			if (name) {
+				const htmlElement = <HTMLElement>(<unknown>item);
+				if (htmlElement[PropertySymbol.formAssociated]) {
+					const value = htmlElement[PropertySymbol.internalsFormValue];
+					if (value instanceof FormData) {
+						for (const [entryName, entryValue] of value) {
+							this.append(entryName, entryValue);
+						}
+					} else if (value != null) {
+						this.append(name, value);
+					}
+					continue;
+				}
+
 				switch (item[PropertySymbol.tagName]) {
 					case 'INPUT':
 						if ((<HTMLInputElement>item).disabled) {

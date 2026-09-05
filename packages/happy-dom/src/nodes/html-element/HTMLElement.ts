@@ -8,6 +8,9 @@ import HTMLElementUtility from './HTMLElementUtility.js';
 import DOMStringMap from '../../dom/DOMStringMap.js';
 import type Attr from '../attr/Attr.js';
 import ElementEventAttributeUtility from '../element/ElementEventAttributeUtility.js';
+import ElementInternals from '../../element-internals/ElementInternals.js';
+import type File from '../../file/File.js';
+import type FormData from '../../form-data/FormData.js';
 
 /**
  * HTML Element.
@@ -19,6 +22,7 @@ export default class HTMLElement extends Element {
 	// Public properties
 	public declare cloneNode: (deep?: boolean) => HTMLElement;
 	public static observedAttributes?: string[];
+	public static formAssociated?: boolean;
 
 	// Internal properties
 	public declare [PropertySymbol.accessKey]: string;
@@ -33,6 +37,9 @@ export default class HTMLElement extends Element {
 	public declare [PropertySymbol.style]: CSSStyleDeclaration | null;
 	public declare [PropertySymbol.dataset]: DOMStringMap | null;
 	public declare [PropertySymbol.customElementDefineCallback]: (() => void) | null;
+	public declare [PropertySymbol.formAssociated]: boolean;
+	public [PropertySymbol.internalsFormValue]: File | string | FormData | null = null;
+	public [PropertySymbol.elementInternals]: ElementInternals | null = null;
 
 	/**
 	 * Constructor.
@@ -864,8 +871,12 @@ export default class HTMLElement extends Element {
 	 *
 	 * @returns Hidden.
 	 */
-	public get hidden(): boolean {
-		return this.getAttribute('hidden') !== null;
+	public get hidden(): boolean | string {
+		const value = this.getAttribute('hidden');
+		if (value === null) {
+			return false;
+		}
+		return value.toLowerCase() === 'until-found' ? 'until-found' : true;
 	}
 
 	/**
@@ -873,11 +884,13 @@ export default class HTMLElement extends Element {
 	 *
 	 * @param hidden Hidden.
 	 */
-	public set hidden(hidden: boolean) {
-		if (!hidden) {
-			this.removeAttribute('hidden');
-		} else {
+	public set hidden(hidden: boolean | string) {
+		if (typeof hidden === 'string' && hidden.toLowerCase() === 'until-found') {
+			this.setAttribute('hidden', 'until-found');
+		} else if (hidden) {
 			this.setAttribute('hidden', '');
+		} else {
+			this.removeAttribute('hidden');
 		}
 	}
 
@@ -983,6 +996,33 @@ export default class HTMLElement extends Element {
 				cancelable: true
 			})
 		);
+	}
+
+	/**
+	 * Attaches an ElementInternals instance, giving a form-associated custom element (one
+	 * whose class declares `static formAssociated = true`) a submission value, form ownership
+	 * and validity reporting.
+	 *
+	 * @returns Element internals.
+	 */
+	public attachInternals(): ElementInternals {
+		const window = this[PropertySymbol.window];
+
+		if (!this[PropertySymbol.formAssociated]) {
+			throw new window.DOMException(
+				"Failed to execute 'attachInternals' on 'HTMLElement': The target element is not a form-associated custom element."
+			);
+		}
+
+		if (this[PropertySymbol.elementInternals]) {
+			throw new window.DOMException(
+				"Failed to execute 'attachInternals' on 'HTMLElement': ElementInternals for the specified element was already attached."
+			);
+		}
+
+		this[PropertySymbol.elementInternals] = new ElementInternals(this);
+
+		return this[PropertySymbol.elementInternals];
 	}
 
 	/**

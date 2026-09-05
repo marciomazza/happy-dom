@@ -21,6 +21,7 @@ import type HTMLDialogElement from '../html-dialog-element/HTMLDialogElement.js'
 import ElementEventAttributeUtility from '../element/ElementEventAttributeUtility.js';
 import type HTMLTextAreaElement from '../html-text-area-element/HTMLTextAreaElement.js';
 import type HTMLOutputElement from '../html-output-element/HTMLOutputElement.js';
+import type HTMLOptionElement from '../html-option-element/HTMLOptionElement.js';
 
 /**
  * HTML Form Element.
@@ -450,19 +451,31 @@ export default class HTMLFormElement extends HTMLElement {
 						PropertySymbol.defaultValue
 					];
 					break;
-				case 'SELECT':
-					let hasSelectedAttribute = false;
-					for (const option of (<HTMLSelectElement>element).options) {
-						if (option.hasAttribute('selected')) {
-							hasSelectedAttribute = true;
-							option.selected = true;
-							break;
+				case 'SELECT': {
+					const selectElement = <HTMLSelectElement>element;
+					if (selectElement.multiple) {
+						// Per spec, auto-selecting the first option when none has a "selected"
+						// attribute only applies to single-selects. A multi-select with no
+						// "selected" options should end up with nothing selected.
+						for (const option of selectElement.options) {
+							option.selected = option.hasAttribute('selected');
+						}
+					} else {
+						// Per spec, the *last* option with a "selected" attribute wins if there
+						// are several (matches parsing/selectedness rules elsewhere).
+						let selectedOption: HTMLOptionElement | null = null;
+						for (const option of selectElement.options) {
+							if (option.hasAttribute('selected')) {
+								selectedOption = option;
+							}
+						}
+						const optionToSelect = selectedOption ?? selectElement.options[0] ?? null;
+						for (const option of selectElement.options) {
+							option.selected = option === optionToSelect;
 						}
 					}
-					if (!hasSelectedAttribute && (<HTMLSelectElement>element).options.length > 0) {
-						(<HTMLSelectElement>element).options[0].selected = true;
-					}
 					break;
+				}
 			}
 		}
 
@@ -522,6 +535,18 @@ export default class HTMLFormElement extends HTMLElement {
 			].slice()
 		);
 
+		// Form-associated custom elements are "listed" per spec, but aren't matched by the
+		// fixed tag-name selector above (their tag name isn't known ahead of time) - find them
+		// among this form's descendants by the [formAssociated] flag CustomElementRegistry
+		// .define() sets instead.
+		for (const element of <THTMLFormControlElement[]>(
+			QuerySelector.querySelectorAll(this, '*')[PropertySymbol.items]
+		)) {
+			if ((<HTMLElement>(<unknown>element))[PropertySymbol.formAssociated]) {
+				elements.push(element);
+			}
+		}
+
 		if (this[PropertySymbol.isConnected]) {
 			const id = this.getAttribute('id');
 			if (id) {
@@ -532,6 +557,19 @@ export default class HTMLFormElement extends HTMLElement {
 					)[PropertySymbol.items]
 				)) {
 					if (!elements.includes(element)) {
+						elements.push(element);
+					}
+				}
+
+				for (const element of <THTMLFormControlElement[]>(
+					QuerySelector.querySelectorAll(this[PropertySymbol.ownerDocument], `*[form="${id}"]`)[
+						PropertySymbol.items
+					]
+				)) {
+					if (
+						(<HTMLElement>(<unknown>element))[PropertySymbol.formAssociated] &&
+						!elements.includes(element)
+					) {
 						elements.push(element);
 					}
 				}

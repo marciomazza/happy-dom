@@ -381,5 +381,29 @@ describe('ParentNodeUtility', () => {
 
 			expect(ParentNodeUtility.getElementById(parent, <string>(<unknown>12345))).toEqual(div);
 		});
+
+		it('Returns the tree-order-first element when multiple elements share the same id, going through Document.getElementById() (elementIdMap fast path).', () => {
+			const pantry = document.createElement('div');
+			const main = document.createElement('main');
+			const second = document.createElement('span');
+			const first = document.createElement('span');
+
+			// "main" is real content already in the document; "pantry" is appended after it,
+			// mirroring htmx parking a preserved element past <body> before restoring it.
+			document.body.appendChild(main);
+			document.body.appendChild(pantry);
+
+			// The pantry's duplicate gets its id set (and pushed into elementIdMap) first, even
+			// though it comes later in tree order than "first" (inside "main").
+			pantry.appendChild(second);
+			second.id = 'dup';
+			second.textContent = 'second (parked)';
+
+			main.appendChild(first);
+			first.id = 'dup';
+			first.textContent = 'first (real)';
+
+			expect(document.getElementById('dup')?.textContent).toBe('first (real)');
+		});
 	});
 });

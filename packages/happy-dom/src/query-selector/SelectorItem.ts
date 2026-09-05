@@ -1,6 +1,7 @@
 import * as PropertySymbol from '../PropertySymbol.js';
 import type Element from '../nodes/element/Element.js';
 import type HTMLInputElement from '../nodes/html-input-element/HTMLInputElement.js';
+import type HTMLOptionElement from '../nodes/html-option-element/HTMLOptionElement.js';
 import SelectorCombinatorEnum from './SelectorCombinatorEnum.js';
 import type ISelectorAttribute from './ISelectorAttribute.js';
 import type ISelectorMatch from './ISelectorMatch.js';
@@ -270,13 +271,52 @@ export default class SelectorItem {
 				}
 				return isFound ? { priorityWeight: 10 } : null;
 			case 'checked':
-				return element[PropertySymbol.tagName] === 'INPUT' && (<HTMLInputElement>element).checked
+				if (element[PropertySymbol.tagName] === 'INPUT') {
+					return (<HTMLInputElement>element).checked ? { priorityWeight: 10 } : null;
+				}
+				if (element[PropertySymbol.tagName] === 'OPTION') {
+					return (<HTMLOptionElement>element).selected ? { priorityWeight: 10 } : null;
+				}
+				return null;
+			case 'disabled': {
+				if (!('disabled' in element)) {
+					return null;
+				}
+				if (element.hasAttribute('disabled')) {
+					return { priorityWeight: 10 };
+				}
+				let disabledAncestor = element.parentElement;
+				while (disabledAncestor) {
+					if (
+						disabledAncestor[PropertySymbol.tagName] === 'FIELDSET' &&
+						disabledAncestor.hasAttribute('disabled')
+					) {
+						const legend = disabledAncestor.children[0];
+						return !legend ||
+							legend[PropertySymbol.tagName] !== 'LEGEND' ||
+							!legend.contains(element)
+							? { priorityWeight: 10 }
+							: null;
+					}
+					disabledAncestor = disabledAncestor.parentElement;
+				}
+				return null;
+			}
+			case 'required':
+				return 'required' in element && element.hasAttribute('required')
 					? { priorityWeight: 10 }
 					: null;
-			case 'disabled':
-				return 'disabled' in element && element.hasAttribute('disabled')
-					? { priorityWeight: 10 }
-					: null;
+			case 'invalid':
+			case 'valid': {
+				if (
+					typeof (<{ checkValidity?: () => boolean }>(<unknown>element)).checkValidity !==
+					'function'
+				) {
+					return null;
+				}
+				const isValid = (<{ checkValidity: () => boolean }>(<unknown>element)).checkValidity();
+				return (pseudo.name === 'invalid' ? !isValid : isValid) ? { priorityWeight: 10 } : null;
+			}
 			case 'empty':
 				return !(<Element>element)[PropertySymbol.elementArray].length
 					? { priorityWeight: 10 }

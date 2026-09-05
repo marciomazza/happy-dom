@@ -307,6 +307,34 @@ describe('FormData', () => {
 			expect(formData.getAll('radioInput')).toEqual([]);
 			expect(formData.getAll('checkboxInput')).toEqual([]);
 		});
+
+		it('Supports a form-associated custom element that called setFormValue().', () => {
+			/* eslint-disable jsdoc/require-jsdoc */
+			class FormAssociatedElement extends window.HTMLElement {
+				public static formAssociated = true;
+				private internals = this.attachInternals();
+
+				public setValue(value: string): void {
+					this.internals.setFormValue(value);
+				}
+			}
+			/* eslint-enable jsdoc/require-jsdoc */
+
+			window.customElements.define('form-associated-element', FormAssociatedElement);
+
+			const form = document.createElement('form');
+			const customElement = <FormAssociatedElement>(
+				document.createElement('form-associated-element')
+			);
+			customElement.setAttribute('name', 'customElement');
+			customElement.setValue('custom value');
+
+			form.appendChild(customElement);
+
+			const formData = new window.FormData(form);
+
+			expect(formData.get('customElement')).toBe('custom value');
+		});
 	});
 
 	describe('forEach()', () => {

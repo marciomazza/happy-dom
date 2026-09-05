@@ -540,6 +540,49 @@ describe('HTMLFormElement', () => {
 			expect(element.length).toBe(0);
 			expect(elements.length).toBe(0);
 		});
+
+		it('Includes a form-associated custom element among the descendants, exactly once.', () => {
+			/* eslint-disable jsdoc/require-jsdoc */
+			class FormAssociatedElement extends (<typeof HTMLElement>window.HTMLElement) {
+				public static formAssociated = true;
+			}
+			/* eslint-enable jsdoc/require-jsdoc */
+
+			window.customElements.define('form-associated-element-3', FormAssociatedElement);
+
+			element.innerHTML = `
+                <div>
+                    <input type="text" name="text1" value="value1">
+                    <form-associated-element-3 id="custom1"></form-associated-element-3>
+                </div>
+            `;
+
+			const custom = <HTMLElement>element.querySelector('#custom1');
+
+			expect(element.length).toBe(2);
+			expect(Array.from(<any>element.elements)).toEqual([element[0], custom]);
+		});
+
+		it('Includes a form-associated custom element referenced by "form" attribute.', () => {
+			/* eslint-disable jsdoc/require-jsdoc */
+			class FormAssociatedElement extends (<typeof HTMLElement>window.HTMLElement) {
+				public static formAssociated = true;
+			}
+			/* eslint-enable jsdoc/require-jsdoc */
+
+			window.customElements.define('form-associated-element-4', FormAssociatedElement);
+
+			const div = document.createElement('div');
+			div.innerHTML = `<form-associated-element-4 form="testForm" id="custom2"></form-associated-element-4>`;
+			element.id = 'testForm';
+			document.body.appendChild(element);
+			document.body.appendChild(div);
+
+			const custom = <HTMLElement>document.getElementById('custom2');
+
+			expect(element.length).toBe(1);
+			expect(Array.from(<any>element.elements)).toEqual([custom]);
+		});
 	});
 
 	describe('get previousSibling()', () => {
@@ -1329,6 +1372,69 @@ describe('HTMLFormElement', () => {
 			b.removeAttribute('checked');
 
 			expect(b.checked).toBe(false);
+		});
+
+		it('Deselects all options in a multiple select with no "selected" option on reset.', () => {
+			element.innerHTML = `
+                <select multiple>
+                    <option value="value1"></option>
+                    <option value="value2"></option>
+                    <option value="value3"></option>
+                </select>
+            `;
+
+			const select = <HTMLSelectElement>element.children[0];
+
+			select.options[0].selected = true;
+			select.options[2].selected = true;
+
+			element.reset();
+
+			expect(select.options[0].selected).toBe(false);
+			expect(select.options[1].selected).toBe(false);
+			expect(select.options[2].selected).toBe(false);
+		});
+
+		it('Keeps all options with a "selected" attribute selected in a multiple select on reset.', () => {
+			element.innerHTML = `
+                <select multiple>
+                    <option value="value1" selected></option>
+                    <option value="value2"></option>
+                    <option value="value3" selected></option>
+                </select>
+            `;
+
+			const select = <HTMLSelectElement>element.children[0];
+
+			select.options[0].selected = false;
+			select.options[1].selected = true;
+			select.options[2].selected = false;
+
+			element.reset();
+
+			expect(select.options[0].selected).toBe(true);
+			expect(select.options[1].selected).toBe(false);
+			expect(select.options[2].selected).toBe(true);
+		});
+
+		it('Selects only the last option with a "selected" attribute in a non-multiple select on reset.', () => {
+			element.innerHTML = `
+                <select>
+                    <option value="value1" selected></option>
+                    <option value="value2"></option>
+                    <option value="value3" selected></option>
+                </select>
+            `;
+
+			const select = <HTMLSelectElement>element.children[0];
+
+			select.value = 'value2';
+
+			element.reset();
+
+			expect(select.options[0].selected).toBe(false);
+			expect(select.options[1].selected).toBe(false);
+			expect(select.options[2].selected).toBe(true);
 		});
 	});
 

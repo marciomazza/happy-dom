@@ -706,11 +706,50 @@ export default class Element
 	 * @param text HTML string to insert.
 	 */
 	public insertAdjacentHTML(position: InsertAdjacentPosition, text: string): void {
-		const childNodes = new HTMLParser(this[PropertySymbol.window]).parse(text)[
-			PropertySymbol.nodeArray
-		];
-		while (childNodes.length) {
-			this.insertAdjacentElement(position, childNodes[0]);
+		let container: Element;
+		let anchor: Node | null;
+
+		switch (position) {
+			case 'beforebegin':
+				container = <Element>this.parentElement;
+				anchor = this;
+				break;
+			case 'afterbegin':
+				container = this;
+				anchor = this.firstChild;
+				break;
+			case 'beforeend':
+				container = this;
+				anchor = null;
+				break;
+			case 'afterend':
+				container = <Element>this.parentElement;
+				anchor = this.nextSibling;
+				break;
+			default:
+				throw new this[PropertySymbol.window].DOMException(
+					`The value provided ('${<string>position}') is not a valid enum value of type InsertPosition.`,
+					DOMExceptionNameEnum.syntaxError
+				);
+		}
+
+		if (!container || container[PropertySymbol.nodeType] !== NodeTypeEnum.elementNode) {
+			throw new this[PropertySymbol.window].DOMException(
+				`Failed to execute 'insertAdjacentHTML' on 'Element': The element has no parent.`,
+				DOMExceptionNameEnum.noModificationAllowedError
+			);
+		}
+
+		// Parses into a detached element sharing the target's tag name so the fragment parsing
+		// algorithm picks the right insertion mode (e.g. "in table"), then moves the resulting
+		// nodes to the real position in one pass, preserving source order for every anchor.
+		const contextElement = this[PropertySymbol.ownerDocument].createElement(container.tagName);
+		const childNodes = (<Element>(
+			new HTMLParser(this[PropertySymbol.window]).parse(text, contextElement)
+		))[PropertySymbol.nodeArray].slice();
+
+		for (const childNode of childNodes) {
+			container.insertBefore(childNode, anchor);
 		}
 	}
 

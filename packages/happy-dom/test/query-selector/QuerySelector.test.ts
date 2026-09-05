@@ -4,6 +4,8 @@ import type Document from '../../src/nodes/document/Document.js';
 import QuerySelectorHTML from './data/QuerySelectorHTML.js';
 import QuerySelectorNthChildHTML from './data/QuerySelectorNthChildHTML.js';
 import type HTMLInputElement from '../../src/nodes/html-input-element/HTMLInputElement.js';
+import type HTMLSelectElement from '../../src/nodes/html-select-element/HTMLSelectElement.js';
+import type HTMLOptionElement from '../../src/nodes/html-option-element/HTMLOptionElement.js';
 import { beforeEach, describe, it, expect } from 'vitest';
 import QuerySelector from '../../src/query-selector/QuerySelector.js';
 
@@ -970,6 +972,27 @@ describe('QuerySelector', () => {
 			expect((<HTMLInputElement>elements[0]).value).toBe('two');
 		});
 
+		it('Returns all option elements matching "option:checked", keeping the cache fresh after select.value changes.', () => {
+			const container = document.createElement('div');
+			container.innerHTML = `
+			<select id="s">
+				<option value="a">a</option>
+				<option value="b">b</option>
+			</select>
+			`;
+
+			// Warms the cache for this exact selector string while nothing is selected.
+			expect(container.querySelectorAll("option[value='b']:checked").length).toBe(0);
+
+			(<HTMLSelectElement>container.querySelector('#s')).value = 'b';
+
+			// Same selector string as above - must reflect the new selection, not a stale cached result.
+			const elements = container.querySelectorAll("option[value='b']:checked");
+
+			expect(elements.length).toBe(1);
+			expect((<HTMLOptionElement>elements[0]).value).toBe('b');
+		});
+
 		it('Returns all elements matching ":disabled".', () => {
 			const container = document.createElement('div');
 			container.innerHTML = `
@@ -1007,6 +1030,64 @@ describe('QuerySelector', () => {
 			expect(elements2[2] === container.children[0].children[4]).toBe(true);
 			expect(elements2[3] === container.children[0].children[4].children[1]).toBe(true);
 			expect(elements2[4] === container.children[0].children[5]).toBe(true);
+		});
+
+		it('Returns descendants of a disabled <fieldset> matching ":disabled", except inside its first <legend>.', () => {
+			const container = document.createElement('div');
+			container.innerHTML = `
+				<fieldset disabled>
+					<legend><input id="inLegend"></legend>
+					<input id="inFieldset">
+					<div><input id="nestedInFieldset"></div>
+				</fieldset>
+				<input id="outside">
+			`;
+			const elements = container.querySelectorAll(':disabled');
+
+			expect(elements.length).toBe(3);
+			expect(elements[0].tagName).toBe('FIELDSET');
+			expect(elements[1].id).toBe('inFieldset');
+			expect(elements[2].id).toBe('nestedInFieldset');
+		});
+
+		it('Does not match ":disabled" for descendants of a <fieldset> without the disabled attribute.', () => {
+			const container = document.createElement('div');
+			container.innerHTML = `<fieldset><input id="a"></fieldset>`;
+
+			expect(container.querySelectorAll(':disabled').length).toBe(0);
+		});
+
+		it('Returns all elements matching ":required".', () => {
+			const container = document.createElement('div');
+			container.innerHTML = `
+				<input id="a" required>
+				<input id="b">
+				<select id="c" required></select>
+				<textarea id="d" required></textarea>
+			`;
+			const elements = container.querySelectorAll(':required');
+
+			expect(elements.length).toBe(3);
+			expect(elements[0].id).toBe('a');
+			expect(elements[1].id).toBe('c');
+			expect(elements[2].id).toBe('d');
+		});
+
+		it('Returns all elements matching ":invalid" and ":valid".', () => {
+			const container = document.createElement('div');
+			container.innerHTML = `
+				<input id="a" required>
+				<input id="b" required value="filled">
+				<div id="c"></div>
+			`;
+
+			const invalid = container.querySelectorAll(':invalid');
+			const valid = container.querySelectorAll(':valid');
+
+			expect(invalid.length).toBe(1);
+			expect(invalid[0].id).toBe('a');
+			expect(valid.length).toBe(1);
+			expect(valid[0].id).toBe('b');
 		});
 
 		it('Returns all elements matching "span:not([type=hidden])".', () => {
