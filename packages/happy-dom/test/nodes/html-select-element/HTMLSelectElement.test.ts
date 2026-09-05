@@ -144,6 +144,23 @@ describe('HTMLSelectElement', () => {
 
 			expect(dispatchedEvent).toBeNull();
 		});
+
+		it('Keeps selectedOptions up to date even when it was read (and its cache warmed) before the value change.', () => {
+			const option1 = <HTMLOptionElement>document.createElement('option');
+			const option2 = <HTMLOptionElement>document.createElement('option');
+			option1.value = 'option1';
+			option2.value = 'option2';
+			element.appendChild(option1);
+			element.appendChild(option2);
+
+			element.value = 'option1';
+
+			expect(element.selectedOptions[0] === option1).toBe(true);
+
+			element.value = 'option2';
+
+			expect(element.selectedOptions[0] === option2).toBe(true);
+		});
 	});
 
 	for (const property of ['disabled', 'autofocus', 'required', 'multiple']) {
@@ -210,6 +227,29 @@ describe('HTMLSelectElement', () => {
 
 			expect(element.selectedIndex).toBe(0);
 		});
+
+		it('Stays up to date when an <option selected> is appended after "options" was read and its cache warmed.', () => {
+			document.body.appendChild(element);
+
+			const option1 = document.createElement('option');
+			const option2 = document.createElement('option');
+			const option3 = document.createElement('option');
+
+			option1.textContent = 'a';
+			option2.textContent = 'b';
+			option3.textContent = 'c';
+			option3.setAttribute('selected', '');
+
+			element.appendChild(option1);
+			// Reading "options" warms the select's querySelectorAll('option') cache.
+			void element.options.length;
+			element.appendChild(option2);
+			void element.options.length;
+			element.appendChild(option3);
+
+			expect(element.selectedIndex).toBe(2);
+			expect(element.value).toBe('c');
+		});
 	});
 
 	describe(`get selectedOptions()`, () => {
@@ -264,6 +304,29 @@ describe('HTMLSelectElement', () => {
 
 			expect(element.selectedOptions.length).toBe(1);
 			expect(element.selectedOptions[0] === option1).toBe(true);
+		});
+
+		it('Stays up to date when options are selected/deselected via the "selected" property instead of the "selected" attribute.', () => {
+			// https://github.com/capricorn86/happy-dom/issues/1594
+			element.setAttribute('multiple', '');
+			const option1 = document.createElement('option');
+			const option2 = document.createElement('option');
+			const option3 = document.createElement('option');
+
+			element.appendChild(option1);
+			element.appendChild(option2);
+			element.appendChild(option3);
+
+			option1.selected = true;
+			option2.selected = true;
+			option3.selected = false;
+
+			expect(element.selectedOptions.length).toBe(2);
+
+			option1.selected = false;
+
+			expect(element.selectedOptions.length).toBe(1);
+			expect(element.selectedOptions[0] === option2).toBe(true);
 		});
 	});
 
@@ -323,6 +386,22 @@ describe('HTMLSelectElement', () => {
 			element.selectedIndex = 1;
 
 			expect(dispatchedEvent).toBeNull();
+		});
+
+		it('Keeps selectedOptions up to date even when it was read (and its cache warmed) before the index change.', () => {
+			const option1 = document.createElement('option');
+			const option2 = document.createElement('option');
+
+			element.appendChild(option1);
+			element.appendChild(option2);
+
+			element.selectedIndex = 0;
+
+			expect(element.selectedOptions[0] === option1).toBe(true);
+
+			element.selectedIndex = 1;
+
+			expect(element.selectedOptions[0] === option2).toBe(true);
 		});
 	});
 

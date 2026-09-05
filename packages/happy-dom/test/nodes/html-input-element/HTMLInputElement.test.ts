@@ -14,6 +14,7 @@ import { beforeEach, describe, it, expect } from 'vitest';
 import PointerEvent from '../../../src/event/events/PointerEvent.js';
 import MouseEvent from '../../../src/event/events/MouseEvent.js';
 import type HTMLElement from '../../../src/nodes/html-element/HTMLElement.js';
+import type HTMLTemplateElement from '../../../src/nodes/html-template-element/HTMLTemplateElement.js';
 
 describe('HTMLInputElement', () => {
 	let window: Window;
@@ -689,6 +690,85 @@ describe('HTMLInputElement', () => {
 			expect(element.form).toBe(form);
 			expect(Array.from(form.elements).includes(element)).toBe(true);
 		});
+
+		it('Lets the "form" attribute win over an ancestor form.', () => {
+			const ancestor = <HTMLFormElement>document.createElement('form');
+			ancestor.id = 'ancestor';
+			const owner = <HTMLFormElement>document.createElement('form');
+			owner.id = 'owner';
+			ancestor.appendChild(element);
+			element.setAttribute('form', 'owner');
+			document.body.appendChild(ancestor);
+			document.body.appendChild(owner);
+			expect(element.form).toBe(owner);
+			expect(Array.from(ancestor.elements).includes(element)).toBe(false);
+			expect(Array.from(owner.elements).filter((item) => item === element).length).toBe(1);
+		});
+
+		it('Returns null when the "form" attribute points at a missing id or a non-form element.', () => {
+			const ancestor = <HTMLFormElement>document.createElement('form');
+			const notAForm = document.createElement('div');
+			notAForm.id = 'not-a-form';
+			ancestor.appendChild(element);
+			document.body.appendChild(ancestor);
+			document.body.appendChild(notAForm);
+
+			element.setAttribute('form', 'missing');
+			expect(element.form).toBe(null);
+
+			element.setAttribute('form', 'not-a-form');
+			expect(element.form).toBe(null);
+		});
+
+		it('Returns the ancestor form when the "form" attribute points at that same ancestor.', () => {
+			const ancestor = <HTMLFormElement>document.createElement('form');
+			ancestor.id = 'ancestor';
+			ancestor.appendChild(element);
+			element.setAttribute('form', 'ancestor');
+			document.body.appendChild(ancestor);
+			expect(element.form).toBe(ancestor);
+			expect(Array.from(ancestor.elements).filter((item) => item === element).length).toBe(1);
+		});
+
+		it('Resolves the "form" attribute within a disconnected tree, like a browser.', () => {
+			const root = document.createElement('div');
+			const ancestor = <HTMLFormElement>document.createElement('form');
+			const owner = <HTMLFormElement>document.createElement('form');
+			owner.id = 'owner';
+			ancestor.appendChild(element);
+			element.setAttribute('form', 'owner');
+			root.appendChild(ancestor);
+			root.appendChild(owner);
+
+			expect(element.form).toBe(owner);
+			expect(Array.from(ancestor.elements).includes(element)).toBe(false);
+			expect(Array.from(owner.elements).filter((item) => item === element).length).toBe(1);
+		});
+
+		it('Returns null when the "form" target is in a different tree than the element.', () => {
+			const owner = <HTMLFormElement>document.createElement('form');
+			owner.id = 'owner';
+			document.body.appendChild(owner);
+			element.setAttribute('form', 'owner');
+			expect(element.form).toBe(null);
+		});
+
+		it('Re-resolves the owner when the "form" attribute is added, changed and removed.', () => {
+			const ancestor = <HTMLFormElement>document.createElement('form');
+			const other = <HTMLFormElement>document.createElement('form');
+			other.id = 'other';
+			ancestor.appendChild(element);
+			document.body.appendChild(ancestor);
+			document.body.appendChild(other);
+
+			expect(element.form).toBe(ancestor);
+			element.setAttribute('form', 'other');
+			expect(element.form).toBe(other);
+			element.setAttribute('form', 'missing');
+			expect(element.form).toBe(null);
+			element.removeAttribute('form');
+			expect(element.form).toBe(ancestor);
+		});
 	});
 
 	describe('get list()', () => {
@@ -916,6 +996,142 @@ describe('HTMLInputElement', () => {
 			expect(radio1.checked).toBe(false);
 			expect(radio2.checked).toBe(true);
 			expect(radio3.checked).toBe(false);
+		});
+
+		it('Unchecks other radio buttons with the same name when the "checked" content attribute is set directly.', () => {
+			const form = document.createElement('form');
+			const radio1 = <HTMLInputElement>document.createElement('input');
+			const radio2 = <HTMLInputElement>document.createElement('input');
+
+			radio1.type = 'radio';
+			radio2.type = 'radio';
+			radio1.name = 'radio';
+			radio2.name = 'radio';
+
+			form.appendChild(radio1);
+			form.appendChild(radio2);
+
+			radio1.checked = true;
+
+			expect(radio1.checked).toBe(true);
+			expect(radio2.checked).toBe(false);
+
+			radio2.setAttribute('checked', '');
+
+			expect(radio1.checked).toBe(false);
+			expect(radio2.checked).toBe(true);
+		});
+
+		it('Keeps a cached ":checked" query fresh when a radio button unchecks its siblings.', () => {
+			const form = document.createElement('form');
+			const radio1 = <HTMLInputElement>document.createElement('input');
+			const radio2 = <HTMLInputElement>document.createElement('input');
+
+			radio1.type = 'radio';
+			radio2.type = 'radio';
+			radio1.name = 'radio';
+			radio2.name = 'radio';
+
+			form.appendChild(radio1);
+			form.appendChild(radio2);
+			document.body.appendChild(form);
+
+			radio1.checked = true;
+
+			expect(document.querySelectorAll('input[name="radio"]:checked').length).toBe(1);
+
+			radio2.checked = true;
+
+			expect(document.querySelectorAll('input[name="radio"]:checked').length).toBe(1);
+			expect(document.querySelectorAll('input[name="radio"]:checked')[0]).toBe(radio2);
+		});
+
+		it('Does not re-check a radio unchecked by mutual exclusion when its "checked" attribute is re-set.', () => {
+			document.body.innerHTML =
+				'<input type="radio" name="x" checked id="a"><input type="radio" name="x" id="b">';
+			const a = <HTMLInputElement>document.getElementById('a');
+			const b = <HTMLInputElement>document.getElementById('b');
+
+			expect(a.checked).toBe(true);
+
+			b.checked = true;
+
+			expect(a.checked).toBe(false);
+			expect(b.checked).toBe(true);
+
+			// Attribute already present → no-op.
+			a.setAttribute('checked', '');
+
+			expect(a.checked).toBe(false);
+			expect(b.checked).toBe(true);
+
+			// Even re-adding it: "a" is now overridden, so the attribute no longer drives it.
+			a.removeAttribute('checked');
+			a.setAttribute('checked', '');
+
+			expect(a.checked).toBe(false);
+			expect(b.checked).toBe(true);
+		});
+
+		it('Keeps the last checked radio button when a subtree with several checked members of a group is connected.', () => {
+			const template = <HTMLTemplateElement>document.createElement('template');
+
+			template.innerHTML =
+				'<div><input type="radio" name="g" checked><input type="radio" name="g" checked><input type="radio" name="g" checked></div>';
+
+			const fragment = document.importNode(template.content, true);
+
+			document.body.appendChild(fragment);
+
+			const radios = <HTMLInputElement[]>Array.from(document.body.querySelectorAll('input'));
+
+			expect(radios.map((radio) => radio.checked)).toEqual([false, false, true]);
+		});
+
+		it('Lets a checked radio button inserted before an already checked one in a connected group win.', () => {
+			const form = document.createElement('form');
+			const existing = <HTMLInputElement>document.createElement('input');
+
+			existing.type = 'radio';
+			existing.name = 'g';
+			existing.checked = true;
+			form.appendChild(existing);
+			document.body.appendChild(form);
+
+			const template = <HTMLTemplateElement>document.createElement('template');
+
+			template.innerHTML = '<input type="radio" name="g" checked>';
+			const inserted = <HTMLInputElement>template.content.firstElementChild;
+
+			form.insertBefore(inserted, existing);
+
+			expect(inserted.checked).toBe(true);
+			expect(existing.checked).toBe(false);
+		});
+
+		it('Scopes a radio button group to its shadow root, independent of same-name radio buttons in the light DOM.', () => {
+			const host = document.createElement('div');
+
+			document.body.appendChild(host);
+
+			const shadowRoot = host.attachShadow({ mode: 'open' });
+
+			shadowRoot.innerHTML =
+				'<input type="radio" name="g" checked><input type="radio" name="g" checked>';
+
+			const shadowRadios = <HTMLInputElement[]>Array.from(shadowRoot.querySelectorAll('input'));
+
+			expect(shadowRadios.map((radio) => radio.checked)).toEqual([false, true]);
+
+			const lightRadio = <HTMLInputElement>document.createElement('input');
+
+			lightRadio.type = 'radio';
+			lightRadio.name = 'g';
+			lightRadio.checked = true;
+			document.body.appendChild(lightRadio);
+
+			expect(lightRadio.checked).toBe(true);
+			expect(shadowRadios.map((radio) => radio.checked)).toEqual([false, true]);
 		});
 	});
 

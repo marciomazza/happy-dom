@@ -2,6 +2,7 @@ import Event from '../../event/Event.js';
 import * as PropertySymbol from '../../PropertySymbol.js';
 import DOMExceptionNameEnum from '../../exception/DOMExceptionNameEnum.js';
 import HTMLElement from '../html-element/HTMLElement.js';
+import HTMLFormControlElementUtility from '../html-element/HTMLFormControlElementUtility.js';
 import type HTMLFormElement from '../html-form-element/HTMLFormElement.js';
 import HTMLInputElementSelectionDirectionEnum from '../html-input-element/HTMLInputElementSelectionDirectionEnum.js';
 import HTMLInputElementSelectionModeEnum from '../html-input-element/HTMLInputElementSelectionModeEnum.js';
@@ -10,6 +11,7 @@ import type HTMLLabelElement from '../html-label-element/HTMLLabelElement.js';
 import HTMLLabelElementUtility from '../html-label-element/HTMLLabelElementUtility.js';
 import type NodeList from '../node/NodeList.js';
 import ElementEventAttributeUtility from '../element/ElementEventAttributeUtility.js';
+import NodeUtility from '../node/NodeUtility.js';
 
 /**
  * HTML Text Area Element.
@@ -96,7 +98,9 @@ export default class HTMLTextAreaElement extends HTMLElement {
 	 * @returns Default value.
 	 */
 	public get defaultValue(): string {
-		return this.textContent;
+		// Element children can reach a textarea via DOM APIs (e.g. appendChild()), bypassing
+		// the RCDATA parser restriction; per spec only direct Text node children count.
+		return NodeUtility.getChildTextContent(this);
 	}
 
 	/**
@@ -355,7 +359,7 @@ export default class HTMLTextAreaElement extends HTMLElement {
 	 */
 	public get value(): string {
 		if (this[PropertySymbol.value] === null) {
-			return this.textContent;
+			return NodeUtility.getChildTextContent(this);
 		}
 
 		return this[PropertySymbol.value];
@@ -445,14 +449,7 @@ export default class HTMLTextAreaElement extends HTMLElement {
 	 * @returns Form.
 	 */
 	public get form(): HTMLFormElement | null {
-		if (this[PropertySymbol.formNode]) {
-			return this[PropertySymbol.formNode];
-		}
-		const id = this.getAttribute('form');
-		if (!id || !this[PropertySymbol.isConnected]) {
-			return null;
-		}
-		return <HTMLFormElement>this[PropertySymbol.ownerDocument].getElementById(id);
+		return HTMLFormControlElementUtility.getFormOwner(this);
 	}
 
 	/**

@@ -30,6 +30,7 @@ import CSSMediaRule from '../css/rules/CSSMediaRule.js';
 import CSSStyleRule from '../css/rules/CSSStyleRule.js';
 import CSSSupportsRule from '../css/rules/CSSSupportsRule.js';
 import CustomElementRegistry from '../custom-element/CustomElementRegistry.js';
+import ElementInternals from '../element-internals/ElementInternals.js';
 import type DOMParser from '../dom-parser/DOMParser.js';
 import DataTransfer from '../event/DataTransfer.js';
 import DataTransferItem from '../event/DataTransferItem.js';
@@ -669,6 +670,7 @@ export default class BrowserWindow extends EventTarget implements INodeJSGlobal 
 	public readonly TimeRanges = TimeRanges;
 	public readonly TextTrackCueList = TextTrackCueList;
 	public readonly ValidityState = ValidityState;
+	public readonly ElementInternals = ElementInternals;
 	public readonly MutationRecord = MutationRecord;
 	public readonly IntersectionObserver = IntersectionObserver;
 	public readonly IntersectionObserverEntry = IntersectionObserverEntry;
@@ -778,6 +780,10 @@ export default class BrowserWindow extends EventTarget implements INodeJSGlobal 
 	public readonly closed = false;
 	public console: IConsole;
 	public name = '';
+	// Legacy "current event" global (https://html.spec.whatwg.org/multipage/webappapis.html#getting-the-current-event),
+	// set by EventTarget for the duration of each dispatchEvent() call and restored to
+	// the outer value afterwards. Real browsers expose it as undefined (not null) when idle.
+	public event: Event | undefined = undefined;
 
 	// Node.js Globals (populated by VMGlobalPropertyScript)
 	public declare Array: typeof Array;

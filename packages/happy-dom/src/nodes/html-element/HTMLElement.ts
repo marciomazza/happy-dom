@@ -8,6 +8,12 @@ import HTMLElementUtility from './HTMLElementUtility.js';
 import DOMStringMap from '../../dom/DOMStringMap.js';
 import type Attr from '../attr/Attr.js';
 import ElementEventAttributeUtility from '../element/ElementEventAttributeUtility.js';
+import ElementInternals from '../../element-internals/ElementInternals.js';
+import DOMExceptionNameEnum from '../../exception/DOMExceptionNameEnum.js';
+import type File from '../../file/File.js';
+import type FormData from '../../form-data/FormData.js';
+
+const HIDDEN_UNTIL_FOUND = 'until-found';
 
 /**
  * HTML Element.
@@ -19,6 +25,7 @@ export default class HTMLElement extends Element {
 	// Public properties
 	public declare cloneNode: (deep?: boolean) => HTMLElement;
 	public static observedAttributes?: string[];
+	public static formAssociated?: boolean;
 
 	// Internal properties
 	public declare [PropertySymbol.accessKey]: string;
@@ -33,6 +40,9 @@ export default class HTMLElement extends Element {
 	public declare [PropertySymbol.style]: CSSStyleDeclaration | null;
 	public declare [PropertySymbol.dataset]: DOMStringMap | null;
 	public declare [PropertySymbol.customElementDefineCallback]: (() => void) | null;
+	public declare [PropertySymbol.formAssociated]: boolean;
+	public [PropertySymbol.internalsFormValue]: File | string | FormData | null = null;
+	public [PropertySymbol.elementInternals]: ElementInternals | null = null;
 
 	/**
 	 * Constructor.
@@ -860,24 +870,32 @@ export default class HTMLElement extends Element {
 	}
 
 	/**
-	 * Returns hidden.
+	 * Returns the enumerated "hidden" state: `false` when absent, `"until-found"` for the
+	 * hidden-until-found state, `true` for any other value.
 	 *
 	 * @returns Hidden.
 	 */
-	public get hidden(): boolean {
-		return this.getAttribute('hidden') !== null;
+	public get hidden(): boolean | string {
+		const value = this.getAttribute('hidden');
+		if (value === null) {
+			return false;
+		}
+		return value.toLowerCase() === HIDDEN_UNTIL_FOUND ? HIDDEN_UNTIL_FOUND : true;
 	}
 
 	/**
-	 * Returns hidden.
+	 * Sets the "hidden" state. `"until-found"` sets the hidden-until-found state,
+	 * other truthy values set the plain hidden state, falsy values remove the attribute.
 	 *
 	 * @param hidden Hidden.
 	 */
-	public set hidden(hidden: boolean) {
-		if (!hidden) {
-			this.removeAttribute('hidden');
-		} else {
+	public set hidden(hidden: boolean | string) {
+		if (typeof hidden === 'string' && hidden.toLowerCase() === HIDDEN_UNTIL_FOUND) {
+			this.setAttribute('hidden', HIDDEN_UNTIL_FOUND);
+		} else if (hidden) {
 			this.setAttribute('hidden', '');
+		} else {
+			this.removeAttribute('hidden');
 		}
 	}
 
@@ -983,6 +1001,35 @@ export default class HTMLElement extends Element {
 				cancelable: true
 			})
 		);
+	}
+
+	/**
+	 * Attaches an ElementInternals instance, giving a form-associated custom element (one
+	 * whose class declares `static formAssociated = true`) a submission value, form ownership
+	 * and validity reporting.
+	 *
+	 * @returns Element internals.
+	 */
+	public attachInternals(): ElementInternals {
+		const window = this[PropertySymbol.window];
+
+		if (!this[PropertySymbol.formAssociated]) {
+			throw new window.DOMException(
+				"Failed to execute 'attachInternals' on 'HTMLElement': The target element is not a form-associated custom element.",
+				DOMExceptionNameEnum.notSupportedError
+			);
+		}
+
+		if (this[PropertySymbol.elementInternals]) {
+			throw new window.DOMException(
+				"Failed to execute 'attachInternals' on 'HTMLElement': ElementInternals for the specified element was already attached.",
+				DOMExceptionNameEnum.notSupportedError
+			);
+		}
+
+		this[PropertySymbol.elementInternals] = new ElementInternals(this);
+
+		return this[PropertySymbol.elementInternals];
 	}
 
 	/**
