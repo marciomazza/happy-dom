@@ -6,6 +6,7 @@ import type HTMLFormElement from '../nodes/html-form-element/HTMLFormElement.js'
 import type BrowserWindow from '../window/BrowserWindow.js';
 import type HTMLButtonElement from '../nodes/html-button-element/HTMLButtonElement.js';
 import DOMExceptionNameEnum from '../exception/DOMExceptionNameEnum.js';
+import HTMLElementUtility from '../nodes/html-element/HTMLElementUtility.js';
 
 type FormDataEntry = {
 	name: string;
@@ -61,7 +62,7 @@ export default class FormData implements Iterable<[string, string | File]> {
 			if (name) {
 				switch (item[PropertySymbol.tagName]) {
 					case 'INPUT':
-						if ((<HTMLInputElement>item).disabled) {
+						if (HTMLElementUtility.isEffectivelyDisabled(item)) {
 							break;
 						}
 
@@ -100,6 +101,9 @@ export default class FormData implements Iterable<[string, string | File]> {
 						break;
 					case 'TEXTAREA':
 					case 'SELECT':
+						if (HTMLElementUtility.isEffectivelyDisabled(item)) {
+							break;
+						}
 						this.append(name, (<HTMLInputElement>item).value);
 						break;
 				}

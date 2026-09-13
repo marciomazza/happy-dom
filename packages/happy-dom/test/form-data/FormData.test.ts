@@ -110,6 +110,79 @@ describe('FormData', () => {
 			expect(formData.get('button4')).toBe(null);
 		});
 
+		it('Excludes an <input> inside a disabled <fieldset>, but not inside its first <legend>.', () => {
+			const form = document.createElement('form');
+			const fieldset = document.createElement('fieldset');
+			const legend = document.createElement('legend');
+			const legendInput = document.createElement('input');
+			const bodyInput = document.createElement('input');
+
+			fieldset.disabled = true;
+			legendInput.name = 'legendInput';
+			legendInput.value = 'legend value';
+			bodyInput.name = 'bodyInput';
+			bodyInput.value = 'body value';
+
+			legend.appendChild(legendInput);
+			fieldset.appendChild(legend);
+			fieldset.appendChild(bodyInput);
+			form.appendChild(fieldset);
+
+			const formData = new window.FormData(form);
+
+			expect(formData.get('legendInput')).toBe('legend value');
+			expect(formData.get('bodyInput')).toBe(null);
+		});
+
+		it('Excludes a <textarea> and a <select> inside a disabled <fieldset>.', () => {
+			const form = document.createElement('form');
+			const fieldset = document.createElement('fieldset');
+			const textarea = document.createElement('textarea');
+			const select = document.createElement('select');
+			const option = document.createElement('option');
+
+			fieldset.disabled = true;
+			textarea.name = 'textareaInput';
+			textarea.value = 'textarea value';
+			select.name = 'selectInput';
+			option.value = 'option value';
+			option.selected = true;
+
+			select.appendChild(option);
+			fieldset.appendChild(textarea);
+			fieldset.appendChild(select);
+			form.appendChild(fieldset);
+
+			const formData = new window.FormData(form);
+
+			expect(formData.get('textareaInput')).toBe(null);
+			expect(formData.get('selectInput')).toBe(null);
+		});
+
+		it('Excludes a directly disabled <textarea> and <select>.', () => {
+			const form = document.createElement('form');
+			const textarea = document.createElement('textarea');
+			const select = document.createElement('select');
+			const option = document.createElement('option');
+
+			textarea.name = 'textareaInput';
+			textarea.value = 'textarea value';
+			textarea.disabled = true;
+			select.name = 'selectInput';
+			select.disabled = true;
+			option.value = 'option value';
+			option.selected = true;
+
+			select.appendChild(option);
+			form.appendChild(textarea);
+			form.appendChild(select);
+
+			const formData = new window.FormData(form);
+
+			expect(formData.get('textareaInput')).toBe(null);
+			expect(formData.get('selectInput')).toBe(null);
+		});
+
 		it('Supports sending in an HTMLFormElement and a submitter to the constructor.', () => {
 			const form = document.createElement('form');
 			const file = new File([Buffer.from('fileContent')], 'file.txt', { type: 'text/plain' });
